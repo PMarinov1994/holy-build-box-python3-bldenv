@@ -8,3 +8,4 @@ docker tag pmarinov944/holy-build-box-python3-bldenv pmarinov944/holy-build-box-
 
 # Push to docker hub
 docker push pmarinov944/holy-build-box-python3-bldenv:4.0.1-amd64
+docker push pmarinov944/holy-build-box-python3-bldenv:latest
