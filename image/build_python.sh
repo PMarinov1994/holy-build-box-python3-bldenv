@@ -1,27 +1,80 @@
 #!/bin/sh
 set -e
 
-source /hbb_shlib/activate
+PYTHON_VERSION=3.13.0
 
-cd /
+# Helper functions
+source /hbb_build/functions.sh
 
-## Python build
-curl -L -O https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tar.xz
+MAKE_CONCURRENCY=2
+VARIANTS='shlib'
 
-tar -xf Python-3.13.0.tar.xz
-cd Python-3.13.0
+### Python
 
-sed -i 's|-lssl -lcrypto|-lssl -lcrypto -lz -ldl|' configure
+function install_python()
+{
+	local VARIANT="$1"
+	local PREFIX="/hbb_$VARIANT"
 
-ZLIB_CFLAGS="$STATICLIB_CFLAGS" ZLIB_LIBS="$LDFLAGS -lz" BZIP2_CFLAGS="$STATICLIB_CFLAGS" BZIP2_LIBS="$LDFLAGS -lbz2" LIBLZMA_CFLAGS="$STATICLIB_CFLAGS" LIBLZMA_LDFLAGS="$LDFLAGS" LIBFFI_CFLAGS="$STATICLIB_CFLAGS" LIBFFI_LIBS="$LDFLAGS -lffi" LIBUUID_CFLAGS="$STATICLIB_CFLAGS" LIBUUID_LIBS="$LDFLAGS -luuid" LIBSQLITE3_CFLAGS="$STATICLIB_CFLAGS" LIBSQLITE3_LIBS="$LDFLAGS -lm -lsqlite3" CURSES_CFLAGS="$STATICLIB_CFLAGS" CURSES_LIBS="$LDFLAGS -lformw -lmenuw -lncursesw -lpanelw -ltic -ltinfo" LIBREADLINE_CFLAGS="$STATICLIB_CFLAGS" LIBREADLINE_LIBS="$LDFLAGS -lreadline -ltinfo" ./configure --prefix=$PWD/_install --with-openssl=/hbb_shlib --enable-optimizations
+	header "Installing python $PYTHON_VERSION : $VARIANT"
+	download_and_extract Python-$PYTHON_VERSION.tar.xz \
+		Python-$PYTHON_VERSION \
+		https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz
 
-make -j12
-make install
+	(
+		# shellcheck source=/dev/null
+		source "$PREFIX/activate"
 
-rm -rf /image/python*
-cp -r _install /image/python-3.13.0-amd64
+		run	sed -i 's|-lssl -lcrypto|-lssl -lcrypto -lz -ldl|' configure
 
-cd /image
+		# export LDFLAGS=$LDFLAGS\ -Wl,--rpath,'\$$ORIGIN/../lib'
 
-tar cfz python-3.13.0-amd64.tar.gz python-3.13.0-amd64
-rm -rf python-3.13.0-amd64
+		export ZLIB_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export ZLIB_LIBS="$LDFLAGS -lz"
+
+		export BZIP2_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export BZIP2_LIBS="$LDFLAGS -lbz2"
+	
+		export LIBLZMA_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export LIBLZMA_LDFLAGS="$LDFLAGS"
+
+		export LIBFFI_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export LIBFFI_LIBS="$LDFLAGS -lffi"
+
+		export LIBUUID_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export LIBUUID_LIBS="$LDFLAGS -luuid"
+
+		export LIBSQLITE3_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export LIBSQLITE3_LIBS="$LDFLAGS -lm -lsqlite3"
+
+		export CURSES_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export CURSES_LIBS="$LDFLAGS -lformw -lmenuw -lncursesw -lpanelw -ltic -ltinfo"
+
+		export LIBREADLINE_CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		export LIBREADLINE_LIBS="$LDFLAGS -lreadline -ltinfo"
+
+		run  ./configure --prefix=$PREFIX --with-openssl=$PREFIX --enable-optimizations --enable-shared
+
+		run make -j$MAKE_CONCURRENCY
+		run make install
+	)
+
+	if [[ "$?" != 0 ]]; then false; fi
+
+	echo "Leaving source directory"
+	popd >/dev/null
+	run rm -rf Python-$PYTHON_VERSION
+}
+
+for VARIANT in $VARIANTS; do
+	install_python "$VARIANT"
+done
+
+### Finalize
+
+header "Finalizing"
+run rm -rf /hbb/share/doc /hbb/share/man
+run rm -rf /hbb_build /tmp/*
+for VARIANT in $VARIANTS; do
+	run rm -rf "/hbb_$VARIANT/share/doc" "/hbb_$VARIANT/share/man"
+done

@@ -1,95 +1,280 @@
 #!/bin/sh
+
 set -e
 
-source /hbb_shlib/activate
+BZIP2_VERSION=1.0.8
+FFI_VERSION=3.4.6
+XZ_VERSION=5.6.3
+UUID_VERSION=1.0.3
+NCURSES_VERSION=6.3
+READLINE_VERSION=8.2
 
-cd /
+# Helper functions
+source /hbb_build/functions.sh
 
-## bzip2-devel.x86_64
-curl -L -O https://sourceware.org/pub/bzip2/bzip2-latest.tar.gz
+MAKE_CONCURRENCY=2
+VARIANTS='exe shlib'
 
-tar -xf bzip2-latest.tar.gz
-rm  -f  bzip2-latest.tar.gz
+### bzip2
 
-cd bzip2-1.0.8
+function install_bzip2()
+{
+	local VARIANT="$1"
+	local PREFIX="/hbb_$VARIANT"
 
-sed -i 's|PREFIX=/usr/local|PREFIX=/hbb_shlib|' Makefile
-sed -i 's|CFLAGS=-Wall -Winline -O2 -g $(BIGFILES)|CFLAGS:=-Wall -Winline -O2 -g $(BIGFILES) $(STATICLIB_CFLAGS)|' Makefile
-make -j2
-make install
+	header "Installing bzip2 $BZIP2_VERSION static libraries: $VARIANT"
+	download_and_extract bzip2-$BZIP2_VERSION.tar.gz \
+		bzip2-$BZIP2_VERSION \
+		https://sourceware.org/pub/bzip2/bzip2-$BZIP2_VERSION.tar.gz
 
-cd /
 
-## libffi-devel.x86_64
-curl -L -O https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
+	(
+		# shellcheck source=/dev/null
+		source "$PREFIX/activate"
+		# shellcheck disable=SC2030,SC2031
+		CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		# shellcheck disable=SC2030,SC2031
+		CPPFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
 
-tar -xf libffi-3.4.6.tar.gz
-rm  -f  libffi-3.4.6.tar.gz
+		export CFLAGS
+		export CPPFLAGS 
 
-cd libffi-3.4.6
+		run sed -i "s|PREFIX=/usr/local|PREFIX=$PREFIX|" Makefile
+		run sed -i 's|CFLAGS=-Wall -Winline -O2 -g $(BIGFILES)|CFLAGS:=-Wall -Winline -O2 -g $(BIGFILES) $(CFLAGS)|' Makefile
 
-CFLAGS="$STATICLIB_CFLAGS" CPPFLAGS="$STATICLIB_CFLAGS" ./configure --prefix=/hbb_shlib --enable-shared=no --enable-static=yes
-make -j2
-make install
+		run make -j$MAKE_CONCURRENCY
+		run make install
+	)
 
-cd /
+	if [[ "$?" != 0 ]]; then false; fi
 
-## xz-devel.x86_64
-curl -L -O https://github.com/tukaani-project/xz/releases/download/v5.6.3/xz-5.6.3.tar.gz
+	echo "Leaving source directory"
+	popd >/dev/null
+	run rm -rf bzip2-$BZIP2_VERSION
+}
 
-tar -xf xz-5.6.3.tar.gz
-rm  -f  xz-5.6.3.tar.gz
+for VARIANT in $VARIANTS; do
+	install_bzip2 "$VARIANT"
+done
 
-cd xz-5.6.3
-CFLAGS="$STATICLIB_CFLAGS" CPPFLAGS="$STATICLIB_CFLAGS" ./configure --prefix=/hbb_shlib --enable-shared=no --enable-static=yes
-make -j2
-make install
 
-cd /
+### ffi
 
-## libuuid-devel.x86_64
-curl -L -o libuuid-1.0.3.tar.gz https://sourceforge.net/projects/libuuid/files/libuuid-1.0.3.tar.gz/download
+function install_ffi()
+{
+	local VARIANT="$1"
+	local PREFIX="/hbb_$VARIANT"
 
-tar -xf libuuid-1.0.3.tar.gz
-rm  -f  libuuid-1.0.3.tar.gz
+	header "Installing ffi $FFI_VERSION static libraries: $PREFIX"
+	download_and_extract libffi-$FFI_VERSION.tar.gz \
+		libffi-$FFI_VERSION \
+		https://github.com/libffi/libffi/releases/download/v$FFI_VERSION/libffi-$FFI_VERSION.tar.gz \
 
-cd libuuid-1.0.3
-CFLAGS="$STATICLIB_CFLAGS" CPPFLAGS="$STATICLIB_CFLAGS" ./configure --prefix=/hbb_shlib --enable-shared=no --enable-static=yes
-make -j2
-make install
+	(
+		# shellcheck source=/dev/null
+		source "$PREFIX/activate"
+		# shellcheck disable=SC2030,SC2031
+		CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		# shellcheck disable=SC2030,SC2031
+		CPPFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
 
-cp /hbb_shlib/include/uuid/* /hbb_shlib/include/
+		export CFLAGS
+		export CPPFLAGS 
 
-cd /
+		run ./configure --prefix=$PREFIX --enable-shared=no --enable-static=yes
+		run make -j$MAKE_CONCURRENCY
+		run make install
+	)
+
+	# shellcheck disable=SC2181
+	if [[ "$?" != 0 ]]; then false; fi
+
+	echo "Leaving source directory"
+	popd >/dev/null
+	run rm -rf libffi-$FFI_VERSION
+}
+
+for VARIANT in $VARIANTS; do
+	install_ffi "$VARIANT"
+done
+
+
+### XZ
+
+function install_xz()
+{
+	local VARIANT="$1"
+	local PREFIX="/hbb_$VARIANT"
+
+	header "Installing xz $XZ_VERSION static libraries: $VARIANT"
+	download_and_extract xz-$XZ_VERSION.tar.gz \
+		xz-$XZ_VERSION \
+		https://github.com/tukaani-project/xz/releases/download/v$XZ_VERSION/xz-$XZ_VERSION.tar.gz	
+
+	(
+		# shellcheck source=/dev/null
+		source "$PREFIX/activate"
+		# shellcheck disable=SC2030,SC2031
+		CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		# shellcheck disable=SC2030,SC2031
+		CPPFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+
+		export CFLAGS
+		export CPPFLAGS 
+
+		run ./configure --prefix=$PREFIX --enable-shared=no --enable-static=yes
+		run make -j$MAKE_CONCURRENCY
+		run make install
+	)
+
+	# shellcheck disable=SC2181
+	if [[ "$?" != 0 ]]; then false; fi
+
+	echo "Leaving source directory"
+	popd >/dev/null
+	run rm -rf xz-$XZ_VERSION
+}
+
+for VARIANT in $VARIANTS; do
+	install_xz "$VARIANT"
+done
+
+### uuid
+
+function install_uuid()
+{
+	local VARIANT="$1"
+	local PREFIX="/hbb_$VARIANT"
+
+	header "Installing uuid $UUID_VERSION static libraries: $VARIANT"
+	download_and_extract libuuid-$UUID_VERSION.tar.gz \
+		libuuid-$UUID_VERSION \
+		https://sourceforge.net/projects/libuuid/files/libuuid-$UUID_VERSION.tar.gz/download
+
+	(
+		# shellcheck source=/dev/null
+		source "$PREFIX/activate"
+		# shellcheck disable=SC2030,SC2031
+		CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		# shellcheck disable=SC2030,SC2031
+		CPPFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+
+		export CFLAGS
+		export CPPFLAGS 
+
+		run ./configure --prefix=$PREFIX --enable-shared=no --enable-static=yes
+		run make -j$MAKE_CONCURRENCY
+		run make install
+
+		run cp $PREFIX/include/uuid/* $PREFIX/include/
+	)
+
+	# shellcheck disable=SC2181
+	if [[ "$?" != 0 ]]; then false; fi
+
+	echo "Leaving source directory"
+	popd >/dev/null
+	run rm -rf libuuid-$UUID_VERSION
+}
+
+for VARIANT in $VARIANTS; do
+	install_uuid "$VARIANT"
+done
+
 
 ## ncurses
 ## https://svnweb.mageia.org/packages/cauldron/ncurses/releases/6.5/20240831.1.mga10/SPECS/
 ## https://svnweb.mageia.org/packages/cauldron/ncurses/releases/6.5/20240831.1.mga10/SPECS/ncurses.spec?revision=2093632&view=co
-curl -L -O https://invisible-island.net/archives/ncurses/ncurses-6.5.tar.gz
 
-tar -xf ncurses-6.5.tar.gz
-rm  -f  ncurses-6.5.tar.gz
 
-cd ncurses-6.5
+function install_ncurses()
+{
+	local VARIANT="$1"
+	local PREFIX="/hbb_$VARIANT"
 
-CFLAGS="$STATICLIB_CFLAGS" CPPFLAGS="$STATICLIB_CFLAGS" ./configure --prefix=/hbb_shlib --without-shared --with-normal --without-debug --disable-overwrite --without-profile --enable-getcap --enable-const --enable-hard-tabs --enable-no-padding --enable-sigwinch --without-ada --enable-xmc-glitch --enable-colorfgbg --enable-pc-files --with-termlib=tinfo --with-ticlib=tic --disable-tic-depends --with-ospeed=unsigned --with-xterm-kbs=DEL --disable-stripping --enable-widec
+	header "Installing ncurses $NCURSES_VERSION static libraries: $VARIANT"
+	download_and_extract ncurses-$NCURSES_VERSION.tar.gz \
+		ncurses-$NCURSES_VERSION \
+		https://invisible-island.net/archives/ncurses/ncurses-$NCURSES_VERSION.tar.gz
 
-make -j2
-make install
+	(
+		# shellcheck source=/dev/null
+		source "$PREFIX/activate"
+		# shellcheck disable=SC2030,SC2031
+		CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		# shellcheck disable=SC2030,SC2031
+		CPPFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
 
-cp -r /hbb_shlib/include/ncursesw /hbb_shlib/include/ncurses
-cp /hbb_shlib/include/ncursesw/* /hbb_shlib/include/
+		export CFLAGS
+		export CPPFLAGS 
 
-cd /
+		run ./configure --prefix=$PREFIX --without-shared --with-normal --without-debug --disable-overwrite --without-profile --enable-getcap --enable-const --enable-hard-tabs --enable-no-padding --enable-sigwinch --without-ada --enable-xmc-glitch --enable-colorfgbg --enable-pc-files --with-termlib=tinfo --with-ticlib=tic --disable-tic-depends --with-ospeed=unsigned --with-xterm-kbs=DEL --disable-stripping --enable-widec
+		run make -j$MAKE_CONCURRENCY
+		run make install
 
-## readline-devel.x86_64
-curl -O ftp://ftp.gnu.org/gnu/readline/readline-8.2.tar.gz
+		run cp -r $PREFIX/include/ncursesw $PREFIX/include/ncurses
+		run cp $PREFIX/include/ncursesw/* $PREFIX/include/
+	)
 
-tar -xf readline-8.2.tar.gz
-rm  -f  readline-8.2.tar.gz
+	# shellcheck disable=SC2181
+	if [[ "$?" != 0 ]]; then false; fi
 
-cd readline-8.2
+	echo "Leaving source directory"
+	popd >/dev/null
+	run rm -rf ncurses-$NCURSES_VERSION
+}
 
-CFLAGS="$STATICLIB_CFLAGS" CPPFLAGS="$STATICLIB_CFLAGS" ./configure --prefix=/hbb_shlib --enable-shared=no --enable-static=yes --with-curses
-make -j2
-make install
+for VARIANT in $VARIANTS; do
+	install_ncurses "$VARIANT"
+done
+
+
+### readline
+
+function install_readline()
+{
+	local VARIANT="$1"
+	local PREFIX="/hbb_$VARIANT"
+
+	header "Installing readline $READLINE_VERSION static libraries: $VARIANT"
+	download_and_extract readline-$READLINE_VERSION.tar.gz \
+		readline-$READLINE_VERSION \
+		ftp://ftp.gnu.org/gnu/readline/readline-$READLINE_VERSION.tar.gz
+
+	(
+		# shellcheck source=/dev/null
+		source "$PREFIX/activate"
+		# shellcheck disable=SC2030,SC2031
+		CFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+		# shellcheck disable=SC2030,SC2031
+		CPPFLAGS=$(adjust_optimization_level "$STATICLIB_CFLAGS")
+
+		export CFLAGS
+		export CPPFLAGS 
+
+		run ./configure --prefix=$PREFIX --enable-shared=no --enable-static=yes --with-curses
+		run make -j$MAKE_CONCURRENCY
+		run make install
+	)
+
+	# shellcheck disable=SC2181
+	if [[ "$?" != 0 ]]; then false; fi
+
+	echo "Leaving source directory"
+	popd >/dev/null
+	run rm -rf readline-$READLINE_VERSION
+}
+
+for VARIANT in $VARIANTS; do
+	install_readline "$VARIANT"
+done
+
+
+### Finalize
+
+header "Finalizing"
+run rm -rf /hbb/share/doc /hbb/share/man
+run rm -rf /hbb_build /tmp/*
+for VARIANT in $VARIANTS; do
+	run rm -rf "/hbb_$VARIANT/share/doc" "/hbb_$VARIANT/share/man"
+done
