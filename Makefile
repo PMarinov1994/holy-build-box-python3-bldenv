@@ -11,17 +11,18 @@ PY_IMAGE = $(IMG_REPO)/$(OWNER)/holy-build-box-py
 ##### BUILDS
 #####
 
+# TODO '--provenance false' is a hack but I CBA fixing it
 build_pyenv_amd64:
-	docker buildx build --load --platform "linux/amd64" --rm -t $(PYENV_IMAGE):$(VERSION)-amd64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-pyenv.dockerfile .
+	docker buildx build --load --platform "linux/amd64" --provenance false --rm -t $(PYENV_IMAGE):$(VERSION)-amd64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-pyenv.dockerfile .
 
 build_pyenv_arm64:
-	docker buildx build --load --platform "linux/arm64" --rm -t $(PYENV_IMAGE):$(VERSION)-arm64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-pyenv.dockerfile .
+	docker buildx build --load --platform "linux/arm64" --provenance false --rm -t $(PYENV_IMAGE):$(VERSION)-arm64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-pyenv.dockerfile .
 
 build_py_amd64:
-	docker buildx build --load --platform "linux/amd64" --rm -t $(PY_IMAGE):$(VERSION)-amd64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-py.dockerfile .
+	docker buildx build --load --platform "linux/amd64" --provenance false --rm -t $(PY_IMAGE):$(VERSION)-amd64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-py.dockerfile .
 
 build_py_arm64:
-	docker buildx build --load --platform "linux/arm64" --rm -t $(PY_IMAGE):$(VERSION)-arm64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-py.dockerfile .
+	docker buildx build --load --platform "linux/arm64" --provenance false --rm -t $(PY_IMAGE):$(VERSION)-arm64 --pull --build-arg DISABLE_OPTIMIZATIONS=$(DISABLE_OPTIMIZATIONS) --file Dockerfile-py.dockerfile .
 
 #####
 ##### TAGS
